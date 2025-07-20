@@ -1,164 +1,61 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SIM DATABASE FLK</title>
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Database FLK - Pelamar PS All</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      padding: 30px;
-      background-color: #f5f7fa;
+      font-family: sans-serif;
+      padding: 2rem;
     }
-
-    h2 {
-      color: #003366;
-    }
-
-    .btn-download {
-      margin: 10px 8px 20px 0;
-      padding: 10px 16px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      color: white;
-      background-color: #28a745;
-      font-weight: bold;
-    }
-
-    .btn-download:hover {
-      background-color: #218838;
-    }
-
-    #sheetTable_wrapper {
+    table {
       width: 100%;
-      overflow-x: auto;
-      font-size: 14px;
+      border-collapse: collapse;
+      margin-top: 1rem;
     }
-
-    #loadingOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0,0,0,0.6);
-      z-index: 99999;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
+    th, td {
+      border: 1px solid #aaa;
+      padding: 8px;
+      text-align: left;
     }
-
-    .spinner {
-      border: 8px solid #f3f3f3;
-      border-top: 8px solid #3498db;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      animation: spin 1s linear infinite;
+    th {
+      background: #f0f0f0;
     }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    .loading {
+      font-size: 1.2rem;
+      color: #444;
     }
   </style>
 </head>
 <body>
+  <h1>Data Pelamar PS All</h1>
+  <div class="loading">Memuat data dari Google Sheets...</div>
+  <table id="data-table" style="display:none">
+    <thead id="table-head"></thead>
+    <tbody id="table-body"></tbody>
+  </table>
 
-<h2>SIM Database Form Lamaran Kerja</h2>
-<button class="btn-download" id="downloadAll">Download Semua Data (Excel)</button>
-<button class="btn-download" id="downloadFiltered">Download Data yang Difilter (Excel)</button>
+  <script>
+    const scriptUrl = "https://script.google.com/macros/s/AKfycbxN99JwZjZ9e9guXe18y-83w5VLQUxU4RG1XPtci-Czx8cuIWtob9ruDMyqYri-ZGvIOg/exec";
 
-<table id="sheetTable" class="display nowrap" style="width:100%">
-  <thead><tr id="columnHeaders"></tr></thead>
-  <tbody></tbody>
-</table>
+    fetch(scriptUrl)
+      .then(response => response.text())
+      .then(csv => {
+        const rows = csv.trim().split("\n").map(row => row.split(",").map(cell => cell.replace(/^"|"$/g, '').replace(/""/g, '"')));
+        const table = document.getElementById("data-table");
+        const thead = document.getElementById("table-head");
+        const tbody = document.getElementById("table-body");
 
-<div id="loadingOverlay">
-  <div class="spinner"></div>
-  <p style="color:white; font-weight:bold; margin-top: 12px;">Memuat data...</p>
-</div>
+        thead.innerHTML = "<tr>" + rows[0].map(cell => `<th>${cell}</th>`).join("") + "</tr>";
+        tbody.innerHTML = rows.slice(1).map(row => "<tr>" + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>").join("");
 
-<script>
-const scriptUrl = "https://script.google.com/macros/s/AKfycbxN99JwZjZ9e9guXe18y-83w5VLQUxU4RG1XPtci-Czx8cuIWtob9ruDMyqYri-ZGvIOg/exec?sheet=Pelamar%20PS%20All";
-
-function showLoading() {
-  document.getElementById("loadingOverlay").style.display = "flex";
-}
-
-function hideLoading() {
-  document.getElementById("loadingOverlay").style.display = "none";
-}
-
-function downloadExcel(dataArray, headers, filename) {
-  const ws_data = [headers];
-  dataArray.forEach(row => {
-    ws_data.push(headers.map(h => row[h] || ""));
-  });
-  const ws = XLSX.utils.aoa_to_sheet(ws_data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  XLSX.writeFile(wb, filename);
-}
-
-function setupTable(data, headers) {
-  const $headersRow = $("#columnHeaders");
-  headers.forEach(h => $headersRow.append(`<th>${h}</th>`));
-
-  const table = $("#sheetTable").DataTable({
-    data: data,
-    columns: headers.map(h => ({
-      data: h,
-      render: function (data) {
-        if (h.toLowerCase().includes("upload cv") && data) {
-          return `<a href="${data}" target="_blank">Download CV</a>`;
-        }
-        return data;
-      }
-    })),
-    ordering: false,
-    pageLength: 50,
-    responsive: true,
-    dom: 'lrtip',
-    scrollX: true
-  });
-
-  $("#downloadAll").on("click", () => downloadExcel(data, headers, "semua_data.xlsx"));
-  $("#downloadFiltered").on("click", () => {
-    const filtered = table.rows({ filter: "applied" }).data().toArray();
-    downloadExcel(filtered, headers, "data_terfilter.xlsx");
-  });
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-  showLoading();
-  fetch(scriptUrl)
-    .then(res => res.text())
-    .then(csv => {
-      Papa.parse(csv, {
-        header: true,
-        skipEmptyLines: true,
-        complete: function (results) {
-          hideLoading();
-          const data = results.data.filter(row => Object.values(row).some(v => v));
-          const headers = Object.keys(data[0]);
-          setupTable(data, headers);
-        }
+        document.querySelector(".loading").style.display = "none";
+        table.style.display = "table";
+      })
+      .catch(err => {
+        document.querySelector(".loading").textContent = "Gagal memuat data: " + err;
       });
-    })
-    .catch(err => {
-      hideLoading();
-      alert("Gagal mengambil data.");
-      console.error(err);
-    });
-});
-</script>
+  </script>
 </body>
 </html>
